@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Pong – Pay to Play (With Background Music)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>Pong – Pay to Play (Mobile Controls + Music)</title>
   <style>
     html, body {
       height: 100%;
@@ -14,6 +14,7 @@
       align-items: center;
       justify-content: center;
       font-family: system-ui, sans-serif;
+      touch-action: manipulation; /* يقلل اللمسات الغير مرغوبة */
     }
     canvas {
       border: 2px solid white;
@@ -21,6 +22,7 @@
       max-width: 480px;
       aspect-ratio: 4 / 3;
       background: black;
+      touch-action: none; /* ما يديرش سكرول */
     }
     .overlay {
       position: fixed;
@@ -49,6 +51,30 @@
       margin-top: 5px;
       font-weight: bold;
     }
+    /* أزرار الموبايل */
+    #mobile-controls {
+      position: fixed;
+      bottom: 14px;
+      display: none;
+      gap: 12px;
+      z-index: 10;
+    }
+    .ctrl-btn {
+      width: 72px;
+      height: 72px;
+      font-size: 26px;
+      border-radius: 14px;
+      border: none;
+      background: #1dd979;
+      color: #04130c;
+      font-weight: 800;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+      touch-action: none;
+      user-select: none;
+    }
+    @media (max-width: 720px) {
+      #mobile-controls { display: flex; }
+    }
   </style>
 </head>
 <body>
@@ -63,6 +89,12 @@
 
   <div id="lossCounter"></div>
   <canvas id="game"></canvas>
+
+  <!-- أزرار الموبايل -->
+  <div id="mobile-controls">
+    <button class="ctrl-btn" id="btn-up">↑</button>
+    <button class="ctrl-btn" id="btn-down">↓</button>
+  </div>
 
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
@@ -86,42 +118,37 @@
     let resetAfterCycle = false;
     let firstPlay = true;
 
-    // 🎵 Background music system
-    let audioCtx, musicNode;
+    /* 🎵 Background music */
+    let audioCtx, musicNode, musicLoopTimer;
     function startMusic() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      // iOS/Android: لازم user gesture—زر Pay & Play كيحلّها
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
       o.type = "triangle";
       let t = audioCtx.currentTime;
-
-      // simple looping melody (do - mi - sol - la)
-      const notes = [261.6, 329.6, 392.0, 440.0];
+      const notes = [261.6, 329.6, 392.0, 440.0]; // do mi sol la
       for (let i = 0; i < 64; i++) {
         const n = notes[i % notes.length];
         o.frequency.setValueAtTime(n, t);
         g.gain.setValueAtTime(0.08, t);
         t += 0.25;
       }
-
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
       o.connect(g);
       g.connect(audioCtx.destination);
       o.start();
       o.stop(t);
       musicNode = o;
-      // restart loop every ~16s
-      setTimeout(() => {
+      musicLoopTimer = setTimeout(() => {
         if (!audioCtx) return;
         startMusic();
       }, 16000);
     }
-
     function stopMusic() {
-      try {
-        if (musicNode) musicNode.stop();
-        musicNode = null;
-      } catch {}
+      try { if (musicNode) musicNode.stop(); } catch {}
+      musicNode = null;
+      if (musicLoopTimer) clearTimeout(musicLoopTimer);
     }
 
     function updateLossDisplay() {
@@ -180,8 +207,7 @@
         if (!pong) pong = startPong();
         else pong.resume();
 
-        // start background music
-        startMusic();
+        startMusic(); // يشتغل بعد البدء
       } catch {
         show("❌ Payment required to play.");
       } finally {
@@ -238,20 +264,21 @@
         if (paused) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // حركة اللاعب
         player.y += player.dy;
         if (player.y < grid) player.y = grid;
         else if (player.y > maxY) player.y = maxY;
 
+        // بوت بسيط
         const botCenter = bot.y + bot.h / 2;
         if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
         else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
 
+        // حركة الكرة
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        if (ball.y < grid || ball.y + grid > canvas.height - grid) {
-          ball.dy *= -1;
-        }
+        if (ball.y < grid || ball.y + grid > canvas.height - grid) ball.dy *= -1;
 
         if (ball.x > canvas.width) {
           if (loseRound()) return;
@@ -259,11 +286,15 @@
           resetBall();
         }
 
-        if (ball.x < bot.x + bot.w && ball.x + ball.w > bot.x && ball.y < bot.y + bot.h && ball.y + ball.h > bot.y)
+        // تصادمات
+        if (ball.x < bot.x + bot.w && ball.x + ball.w > bot.x && ball.y < bot.y + bot.h && ball.y + ball.h > bot.y) {
           ball.dx *= -1;
-        if (ball.x < player.x + player.w && ball.x + ball.w > player.x && ball.y < player.y + player.h && ball.y + ball.h > player.y)
+        }
+        if (ball.x < player.x + player.w && ball.x + ball.w > player.x && ball.y < player.y + player.h && ball.y + ball.h > player.y) {
           ball.dx *= -1;
+        }
 
+        // رسم
         ctx.fillStyle = "white";
         ctx.fillRect(bot.x, bot.y, bot.w, bot.h);
         ctx.fillRect(player.x, player.y, player.w, player.h);
@@ -272,12 +303,28 @@
         rafId = requestAnimationFrame(loop);
       }
 
+      // كيبورد (للـPC)
       document.addEventListener("keydown", e => {
         if (e.which === 38) player.dy = -paddleSpeed;
         else if (e.which === 40) player.dy = paddleSpeed;
       });
       document.addEventListener("keyup", e => {
         if ([38, 40].includes(e.which)) player.dy = 0;
+      });
+
+      // أزرار الموبايل (لمس + ماوس للضغط المطوّل)
+      const upBtn = document.getElementById('btn-up');
+      const downBtn = document.getElementById('btn-down');
+      const startUp = (ev) => { ev.preventDefault(); player.dy = -paddleSpeed; };
+      const startDown = (ev) => { ev.preventDefault(); player.dy = paddleSpeed; };
+      const stopMove = (ev) => { ev.preventDefault(); player.dy = 0; };
+
+      [['touchstart','mousedown'], ['touchend','mouseup','mouseleave']].forEach((arr, i) => {
+        const isStart = i === 0;
+        arr.forEach(evt => {
+          upBtn.addEventListener(evt, isStart ? startUp : stopMove, { passive: false });
+          downBtn.addEventListener(evt, isStart ? startDown : stopMove, { passive: false });
+        });
       });
 
       resetBall();
