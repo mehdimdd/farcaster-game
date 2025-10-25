@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Pong – Pay to Play (Chillwave Music)</title>
+  <title>Pong – Pay to Play (with Chill Music)</title>
   <style>
     html, body {
       height: 100%;
@@ -109,7 +109,7 @@
   </div>
 
   <!-- 🎵 BACKGROUND MUSIC -->
-  <audio id="bgMusic" src="music.mp3" loop preload="auto"></audio>
+  <audio id="bgMusic" src="music.mp3" preload="auto" loop></audio>
 
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
@@ -134,22 +134,21 @@
     let firstPlay = true;
     let muted = false;
 
-    bgMusic.volume = 0.25; // 🎵 calm volume
+    // 🎵 إعداد الموسيقى
+    bgMusic.volume = 0.25; // هادئة
 
-    // start music from 25s mark
-    function startMusic() {
+    async function startMusic() {
       if (muted) return;
       try {
-        bgMusic.currentTime = 25; // start at 25s
-        bgMusic.play();
+        bgMusic.currentTime = 25; // البداية من 25 ثانية
+        await bgMusic.play();
       } catch (err) {
-        console.log("Music play blocked until user gesture.");
+        console.warn("🎵 Autoplay blocked:", err);
       }
     }
 
     function stopMusic() {
       bgMusic.pause();
-      bgMusic.currentTime = 25;
     }
 
     muteBtn.addEventListener("click", () => {
