@@ -1,19 +1,19 @@
 {
   "accountAssociation": {
-    "header": "eyJmaWQiOjUyNjk5MiwidHlwZSI6ImF1dGgiLCJrZXkiOiIweDQ3ZGQ2NjQ0YWRjMDUwZWVlOTQxNDNCZUZhN0Y1QTJmNDU1RDNjNzMifQ",
-    "payload": "eyJkb21haW4iOiJzbmFrZS1nYW1lLWJ5LWFsYy52ZXJjZWwuYXBwIn0",
-    "signature": "PUT_YOUR_GENERATED_SIGNATURE_HERE"
+    "header": "eyJmaWQiOjYwNzU2NywidHlwZSI6ImF1dGgiLCJrZXkiOiIweDQyNkZENzUwOTkzQjlhZjdiZjUwMDc2MkIxNWE5RWRCQjkyNTNCYjIifQ",
+    "payload": "eyJkb21haW4iOiJmYXJjYXN0ZXItZ2FtZS1wc2kudmVyY2VsLmFwcCJ9",
+    "signature": "v3xdqEN4WqFGzRHxml10vbDuKHRjnEy12XqXlChgOs9VZhplepyp1Qgt8Usni3/Fh1SMIm/bSyWPJH9su/g96Rw="
   },
   "miniapp": {
     "version": "1",
-    "name": "SNAKE GAME",
-    "iconUrl": "https://wallpapers.com/images/high/snake-game-icon-2u07k6i14eluw4oi.webp",
-    "homeUrl": "https://snake-game-by-alc.vercel.app/",
-    "imageUrl": "https://projects.arduinocontent.cc/cover-images/aec6b979-c133-4793-81b3-3df2fe863062.jpg",
-    "buttonTitle": "Start GAME",
-    "splashImageUrl": "https://projects.arduinocontent.cc/cover-images/aec6b979-c133-4793-81b3-3df2fe863062.jpg",
-    "splashBackgroundColor": "#1a0f2e",
-    "description": "Play the classic Snake game — eat food, grow your snake, and avoid walls!"
+    "name": "Farcaster Game",
+    "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Tetris.svg",
+    "homeUrl": "https://farcaster-game-psi.vercel.app/",
+    "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Tetris_Gameplay.jpg/640px-Tetris_Gameplay.jpg",
+    "buttonTitle": "Play Now",
+    "splashImageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Tetris_Gameplay.jpg/640px-Tetris_Gameplay.jpg",
+    "splashBackgroundColor": "#000000",
+    "description": "Play a fun web game directly in Farcaster!"
   }
 }
 
