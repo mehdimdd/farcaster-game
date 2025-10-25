@@ -1,198 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Basic Pong HTML Game</title>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Pong – Pay to Play</title>
   <style>
-  html, body {
-    height: 100%;
-    margin: 0;
-  }
+    html, body { height:100%; margin:0; }
+    body { background:black; display:flex; align-items:center; justify-content:center; }
+    canvas { border:2px solid white; }
 
-  body {
-    background: black;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+    .overlay {
+      position:fixed; inset:0; display:grid; place-items:center;
+      background:rgba(0,0,0,.8); color:white; font-family:sans-serif;
+    }
+    button {
+      background:#1dd979; border:0; padding:10px 20px; border-radius:10px;
+      color:#04130c; font-weight:700; cursor:pointer; margin-top:10px;
+    }
+    #status { margin-top:8px; font-size:14px; color:#ccc; }
   </style>
 </head>
 <body>
-<canvas width="750" height="585" id="game"></canvas>
-<script>
-const canvas = document.getElementById('game');
-const context = canvas.getContext('2d');
-const grid = 15;
-const paddleHeight = grid * 5; // 80
-const maxPaddleY = canvas.height - grid - paddleHeight;
+  <div id="intro" class="overlay">
+    <div>
+      <h2>🎮 Pong Game</h2>
+      <p>To start, a small Base transaction is required.</p>
+      <button id="payPlay">Pay & Play</button>
+      <div id="status"></div>
+    </div>
+  </div>
 
-var paddleSpeed = 6;
-var ballSpeed = 5;
+  <canvas width="750" height="585" id="game"></canvas>
 
-const leftPaddle = {
-  // start in the middle of the game on the left side
-  x: grid * 2,
-  y: canvas.height / 2 - paddleHeight / 2,
-  width: grid,
-  height: paddleHeight,
+  <script type="module">
+    import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'
+    sdk.actions.ready();
 
-  // paddle velocity
-  dy: 0
-};
-const rightPaddle = {
-  // start in the middle of the game on the right side
-  x: canvas.width - grid * 3,
-  y: canvas.height / 2 - paddleHeight / 2,
-  width: grid,
-  height: paddleHeight,
+    const USE_BASE_SEPOLIA = false;
+    const RECIPIENT = "0x02212a875c56baE7AF27A5a389FD4e8A11442692";
+    const AMOUNT_ETH = "0.00001";
 
-  // paddle velocity
-  dy: 0
-};
-const ball = {
-  // start in the middle of the game
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  width: grid,
-  height: grid,
+    const BASE_MAINNET = { chainId: "0x2105",  explorer: "https://basescan.org/tx/" };
+    const BASE_SEPOLIA = { chainId: "0x14a34", explorer: "https://sepolia.basescan.org/tx/" };
+    const TARGET = USE_BASE_SEPOLIA ? BASE_SEPOLIA : BASE_MAINNET;
 
-  // keep track of when need to reset the ball position
-  resetting: false,
+    const statusEl = document.getElementById("status");
+    const show = msg => { statusEl.innerHTML += msg + "<br>"; };
 
-  // ball velocity (start going to the top-right corner)
-  dx: ballSpeed,
-  dy: -ballSpeed
-};
+    function parseEther(x){
+      const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18);
+      return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16);
+    }
+    async function getProvider(){
+      try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {}
+      return window.ethereum ?? null;
+    }
+    async function ensureChain(provider, chainId) {
+      const current = (await provider.request({ method:'eth_chainId' }))?.toLowerCase();
+      if (current === chainId.toLowerCase()) return;
+      try {
+        await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] });
+      } catch (e) {
+        if (e?.code === 4902) {
+          await provider.request({ method:'wallet_addEthereumChain', params:[{ chainId }] });
+          await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] });
+        } else { throw e; }
+      }
+    }
+    async function requiredPayment() {
+      show("🔍 Locating wallet…");
+      const provider = await getProvider();
+      if (!provider) throw new Error("No wallet");
+      show("✅ Wallet ready.");
+      const [from] = await provider.request({ method:'eth_requestAccounts' });
+      show("👛 " + from.slice(0,6)+"…"+from.slice(-4));
+      await ensureChain(provider, TARGET.chainId);
+      show("🔄 On Base network.");
+      const hash = await provider.request({
+        method:'eth_sendTransaction',
+        params:[{ from, to:RECIPIENT, value:parseEther(AMOUNT_ETH) }]
+      });
+      show(`✅ TX sent. <a target="_blank" href="${TARGET.explorer}${hash}">View</a>`);
+      return hash;
+    }
 
-// check for collision between two objects using axis-aligned bounding box (AABB)
-// @see https://developer.mozilla.org/en-US/docs/Games/Techniques/2D_collision_detection
-function collides(obj1, obj2) {
-  return obj1.x < obj2.x + obj2.width &&
-         obj1.x + obj1.width > obj2.x &&
-         obj1.y < obj2.y + obj2.height &&
-         obj1.y + obj1.height > obj2.y;
-}
+    document.getElementById("payPlay").addEventListener("click", async () => {
+      try {
+        document.getElementById("payPlay").disabled = true;
+        await requiredPayment();
+        document.getElementById("intro").style.display = "none";
+        startPong();
+      } catch(e) {
+        show("❌ Payment required to play.");
+      } finally {
+        document.getElementById("payPlay").disabled = false;
+      }
+    });
 
-// game loop
-function loop() {
-  requestAnimationFrame(loop);
-  context.clearRect(0,0,canvas.width,canvas.height);
+    /* === Original Pong code === */
+    function startPong(){
+      const canvas = document.getElementById('game');
+      const context = canvas.getContext('2d');
+      const grid = 15;
+      const paddleHeight = grid * 5;
+      const maxPaddleY = canvas.height - grid - paddleHeight;
+      let paddleSpeed = 6, ballSpeed = 5;
+      const left = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+      const right = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+      const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed, resetting:false };
 
-  // move paddles by their velocity
-  leftPaddle.y += leftPaddle.dy;
-  rightPaddle.y += rightPaddle.dy;
+      function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
 
-  // prevent paddles from going through walls
-  if (leftPaddle.y < grid) {
-    leftPaddle.y = grid;
-  }
-  else if (leftPaddle.y > maxPaddleY) {
-    leftPaddle.y = maxPaddleY;
-  }
+      function loop(){
+        requestAnimationFrame(loop);
+        context.clearRect(0,0,canvas.width,canvas.height);
+        left.y+=left.dy; right.y+=right.dy;
+        if(left.y<grid) left.y=grid; else if(left.y>maxPaddleY) left.y=maxPaddleY;
+        if(right.y<grid) right.y=grid; else if(right.y>maxPaddleY) right.y=maxPaddleY;
 
-  if (rightPaddle.y < grid) {
-    rightPaddle.y = grid;
-  }
-  else if (rightPaddle.y > maxPaddleY) {
-    rightPaddle.y = maxPaddleY;
-  }
+        context.fillStyle='white';
+        context.fillRect(left.x,left.y,left.width,left.height);
+        context.fillRect(right.x,right.y,right.width,right.height);
 
-  // draw paddles
-  context.fillStyle = 'white';
-  context.fillRect(leftPaddle.x, leftPaddle.y, leftPaddle.width, leftPaddle.height);
-  context.fillRect(rightPaddle.x, rightPaddle.y, rightPaddle.width, rightPaddle.height);
+        ball.x+=ball.dx; ball.y+=ball.dy;
+        if(ball.y<grid||ball.y+grid>canvas.height-grid){ ball.dy*=-1; }
 
-  // move ball by its velocity
-  ball.x += ball.dx;
-  ball.y += ball.dy;
+        if((ball.x<0||ball.x>canvas.width)&&!ball.resetting){
+          ball.resetting=true;
+          setTimeout(()=>{ball.resetting=false; ball.x=canvas.width/2; ball.y=canvas.height/2;},400);
+        }
 
-  // prevent ball from going through walls by changing its velocity
-  if (ball.y < grid) {
-    ball.y = grid;
-    ball.dy *= -1;
-  }
-  else if (ball.y + grid > canvas.height - grid) {
-    ball.y = canvas.height - grid * 2;
-    ball.dy *= -1;
-  }
+        if(collides(ball,left)){ ball.dx*=-1; ball.x=left.x+left.width; }
+        else if(collides(ball,right)){ ball.dx*=-1; ball.x=right.x-ball.width; }
 
-  // reset ball if it goes past paddle (but only if we haven't already done so)
-  if ( (ball.x < 0 || ball.x > canvas.width) && !ball.resetting) {
-    ball.resetting = true;
+        context.fillRect(ball.x,ball.y,ball.width,ball.height);
+        context.fillStyle='lightgrey';
+        context.fillRect(0,0,canvas.width,grid);
+        context.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
+        for(let i=grid;i<canvas.height-grid;i+=grid*2)
+          context.fillRect(canvas.width/2-grid/2,i,grid,grid);
+      }
 
-    // give some time for the player to recover before launching the ball again
-    setTimeout(() => {
-      ball.resetting = false;
-      ball.x = canvas.width / 2;
-      ball.y = canvas.height / 2;
-    }, 400);
-  }
-
-  // check to see if ball collides with paddle. if they do change x velocity
-  if (collides(ball, leftPaddle)) {
-    ball.dx *= -1;
-
-    // move ball next to the paddle otherwise the collision will happen again
-    // in the next frame
-    ball.x = leftPaddle.x + leftPaddle.width;
-  }
-  else if (collides(ball, rightPaddle)) {
-    ball.dx *= -1;
-
-    // move ball next to the paddle otherwise the collision will happen again
-    // in the next frame
-    ball.x = rightPaddle.x - ball.width;
-  }
-
-  // draw ball
-  context.fillRect(ball.x, ball.y, ball.width, ball.height);
-
-  // draw walls
-  context.fillStyle = 'lightgrey';
-  context.fillRect(0, 0, canvas.width, grid);
-  context.fillRect(0, canvas.height - grid, canvas.width, canvas.height);
-
-  // draw dotted line down the middle
-  for (let i = grid; i < canvas.height - grid; i += grid * 2) {
-    context.fillRect(canvas.width / 2 - grid / 2, i, grid, grid);
-  }
-}
-
-// listen to keyboard events to move the paddles
-document.addEventListener('keydown', function(e) {
-
-  // up arrow key
-  if (e.which === 38) {
-    rightPaddle.dy = -paddleSpeed;
-  }
-  // down arrow key
-  else if (e.which === 40) {
-    rightPaddle.dy = paddleSpeed;
-  }
-
-  // w key
-  if (e.which === 87) {
-    leftPaddle.dy = -paddleSpeed;
-  }
-  // a key
-  else if (e.which === 83) {
-    leftPaddle.dy = paddleSpeed;
-  }
-});
-
-// listen to keyboard events to stop the paddle if key is released
-document.addEventListener('keyup', function(e) {
-  if (e.which === 38 || e.which === 40) {
-    rightPaddle.dy = 0;
-  }
-
-  if (e.which === 83 || e.which === 87) {
-    leftPaddle.dy = 0;
-  }
-});
-
-// start the game
-requestAnimationFrame(loop);
-</script>
+      document.addEventListener('keydown',e=>{
+        if(e.which===38) right.dy=-paddleSpeed;
+        else if(e.which===40) right.dy=paddleSpeed;
+        if(e.which===87) left.dy=-paddleSpeed;
+        else if(e.which===83) left.dy=paddleSpeed;
+      });
+      document.addEventListener('keyup',e=>{
+        if([38,40].includes(e.which)) right.dy=0;
+        if([83,87].includes(e.which)) left.dy=0;
+      });
+      requestAnimationFrame(loop);
+    }
+  </script>
 </body>
 </html>
