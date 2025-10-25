@@ -7,7 +7,7 @@
   "miniapp": {
     "version": "1",
     "name": "Farcaster Game",
-    "iconUrl": "https://farcaster-game-psi.vercel.app",
+    "iconUrl": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Game_icon.png",
     "homeUrl": "https://farcaster-game-psi.vercel.app/",
     "imageUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Tetris_Gameplay.jpg/640px-Tetris_Gameplay.jpg",
     "buttonTitle": "Play Now",
@@ -16,4 +16,3 @@
     "description": "Play a fun web game directly in Farcaster!"
   }
 }
-
