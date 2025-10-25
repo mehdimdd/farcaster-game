@@ -28,11 +28,12 @@
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
       color: white;
       font-family: sans-serif;
       text-align: center;
       padding: 20px;
+      transition: all 0.4s ease;
     }
 
     button {
@@ -58,6 +59,7 @@
       margin-top: 10px;
       gap: 10px;
     }
+
     .ctrl-btn {
       width: 70px;
       height: 70px;
@@ -70,6 +72,7 @@
       cursor: pointer;
       box-shadow: 0 3px 8px rgba(0,0,0,0.3);
     }
+
     @media (max-width: 720px) {
       #mobile-controls {
         display: flex;
@@ -110,10 +113,11 @@
     const statusEl = document.getElementById("status");
     const show = msg => { statusEl.innerHTML += msg + "<br>"; };
 
-    let lossCount = 0; // Track how many times the player loses
+    let lossCount = 0; // عدد المرات اللي خسر فيها اللاعب
 
     function parseEther(x){
-      const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18);
+      const [w,f=""]=String(x).split('.');
+      const frac=(f+'0'.repeat(18)).slice(0,18);
       return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16);
     }
 
@@ -138,12 +142,12 @@
     async function requiredPayment() {
       show("🔍 Connecting wallet…");
       const provider = await getProvider();
-      if (!provider) throw new Error("No wallet");
+      if (!provider) throw new Error("No wallet found");
       show("✅ Wallet ready.");
       const [from] = await provider.request({ method:'eth_requestAccounts' });
       show("👛 " + from.slice(0,6)+"…"+from.slice(-4));
       await ensureChain(provider, TARGET.chainId);
-      show("🔄 On Base network.");
+      show("🔄 Switching to Base network…");
       const hash = await provider.request({
         method:'eth_sendTransaction',
         params:[{ from, to:RECIPIENT, value:parseEther(AMOUNT_ETH) }]
@@ -152,12 +156,13 @@
       return hash;
     }
 
-    // Main start
+    // Start the game after payment
     document.getElementById("payPlay").addEventListener("click", async () => {
       try {
         document.getElementById("payPlay").disabled = true;
         await requiredPayment();
         document.getElementById("intro").style.display = "none";
+        lossCount = 0; // reset after payment
         startPong();
       } catch(e) {
         show("❌ Payment required to play.");
@@ -166,11 +171,14 @@
       }
     });
 
+    // عند الخسارة 3 مرات، ترجع الصفحة الأولى
     async function handleLoss(){
       lossCount++;
-      if (lossCount % 3 === 0) {
-        alert("💰 You've lost 3 times! Please pay again to continue playing.");
-        await requiredPayment();
+      if (lossCount >= 3) {
+        alert("💸 You lost 3 times! Please pay again to continue.");
+        lossCount = 0;
+        document.getElementById("intro").style.display = "grid";
+        document.getElementById("status").innerHTML = "";
       }
     }
 
