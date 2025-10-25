@@ -10,15 +10,16 @@
       margin: 0;
       background: black;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
     }
 
     canvas {
       border: 2px solid white;
-      width: 90vw;           
-      max-width: 480px;      
-      aspect-ratio: 4 / 3;   
+      width: 90vw;
+      max-width: 480px;
+      aspect-ratio: 4 / 3;
       background: black;
     }
 
@@ -50,6 +51,30 @@
       font-size: 14px;
       color: #ccc;
     }
+
+    /* Mobile controls */
+    #mobile-controls {
+      display: none;
+      margin-top: 10px;
+      gap: 10px;
+    }
+    .ctrl-btn {
+      width: 70px;
+      height: 70px;
+      font-size: 24px;
+      border-radius: 12px;
+      border: none;
+      background: #1dd979;
+      color: #04130c;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    }
+    @media (max-width: 720px) {
+      #mobile-controls {
+        display: flex;
+      }
+    }
   </style>
 </head>
 <body>
@@ -63,6 +88,12 @@
   </div>
 
   <canvas id="game"></canvas>
+
+  <!-- On-screen mobile controls -->
+  <div id="mobile-controls">
+    <button class="ctrl-btn" id="btn-up">↑</button>
+    <button class="ctrl-btn" id="btn-down">↓</button>
+  </div>
 
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'
@@ -141,8 +172,7 @@
       const maxPaddleY = canvas.height - grid - paddleHeight;
       let paddleSpeed = 6, ballSpeed = 4;
 
-      // Player on right, bot on left
-      const bot = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+      const bot = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
       const player = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
       const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed, resetting:false };
 
@@ -152,12 +182,12 @@
         requestAnimationFrame(loop);
         context.clearRect(0,0,canvas.width,canvas.height);
 
-        // Move player (keyboard)
+        // Player movement (keyboard + mobile)
         player.y += player.dy;
         if(player.y < grid) player.y = grid;
         else if(player.y > maxPaddleY) player.y = maxPaddleY;
 
-        // Bot movement: follow ball slowly
+        // Bot movement
         const botCenter = bot.y + bot.height / 2;
         if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
         else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
@@ -168,37 +198,31 @@
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        // Bounce top/bottom
         if(ball.y < grid || ball.y + grid > canvas.height - grid){ ball.dy *= -1; }
 
-        // Reset ball if out of bounds
+        // Reset ball if out
         if((ball.x < 0 || ball.x > canvas.width) && !ball.resetting){
           ball.resetting = true;
           setTimeout(()=>{
             ball.resetting = false;
-            ball.x = canvas.width / 2;
-            ball.y = canvas.height / 2;
+            ball.x = canvas.width/2;
+            ball.y = canvas.height/2;
             ball.dx = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
             ball.dy = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
           },400);
         }
 
         // Collisions
-        if(collides(ball, bot)){
-          ball.dx *= -1;
-          ball.x = bot.x + bot.width;
-        } else if(collides(ball, player)){
-          ball.dx *= -1;
-          ball.x = player.x - ball.width;
-        }
+        if(collides(ball, bot)){ ball.dx *= -1; ball.x = bot.x + bot.width; }
+        else if(collides(ball, player)){ ball.dx *= -1; ball.x = player.x - ball.width; }
 
-        // Draw paddles and ball
+        // Draw
         context.fillStyle='white';
         context.fillRect(bot.x, bot.y, bot.width, bot.height);
         context.fillRect(player.x, player.y, player.width, player.height);
         context.fillRect(ball.x, ball.y, ball.width, ball.height);
 
-        // Walls and midline
+        // Walls + midline
         context.fillStyle='lightgrey';
         context.fillRect(0,0,canvas.width,grid);
         context.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
@@ -206,7 +230,7 @@
           context.fillRect(canvas.width/2-grid/2,i,grid,grid);
       }
 
-      // Player controls
+      // Keyboard controls
       document.addEventListener('keydown',e=>{
         if(e.which===38) player.dy=-paddleSpeed;
         else if(e.which===40) player.dy=paddleSpeed;
@@ -214,6 +238,18 @@
       document.addEventListener('keyup',e=>{
         if([38,40].includes(e.which)) player.dy=0;
       });
+
+      // Mobile controls
+      const upBtn = document.getElementById('btn-up');
+      const downBtn = document.getElementById('btn-down');
+
+      const handleTouchStart = (dir) => { player.dy = dir === 'up' ? -paddleSpeed : paddleSpeed; };
+      const handleTouchEnd = () => { player.dy = 0; };
+
+      upBtn.addEventListener('touchstart', () => handleTouchStart('up'));
+      downBtn.addEventListener('touchstart', () => handleTouchStart('down'));
+      upBtn.addEventListener('touchend', handleTouchEnd);
+      downBtn.addEventListener('touchend', handleTouchEnd);
 
       requestAnimationFrame(loop);
     }
