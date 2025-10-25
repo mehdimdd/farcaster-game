@@ -13,6 +13,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
 
     canvas {
@@ -21,6 +22,7 @@
       max-width: 480px;
       aspect-ratio: 4 / 3;
       background: black;
+      touch-action: none;
     }
 
     .overlay {
@@ -30,10 +32,8 @@
       place-items: center;
       background: rgba(0, 0, 0, 0.85);
       color: white;
-      font-family: sans-serif;
       text-align: center;
       padding: 20px;
-      transition: all 0.4s ease;
     }
 
     button {
@@ -47,44 +47,23 @@
       margin-top: 10px;
     }
 
-    #status {
-      margin-top: 8px;
-      font-size: 14px;
-      color: #ccc;
-    }
+    #status { margin-top: 8px; font-size: 14px; color: #ccc; }
 
     /* Mobile controls */
-    #mobile-controls {
-      display: none;
-      margin-top: 10px;
-      gap: 10px;
-    }
-
+    #mobile-controls { display: none; margin-top: 10px; gap: 10px; }
     .ctrl-btn {
-      width: 70px;
-      height: 70px;
-      font-size: 24px;
-      border-radius: 12px;
-      border: none;
-      background: #1dd979;
-      color: #04130c;
-      font-weight: bold;
-      cursor: pointer;
+      width: 70px; height: 70px; font-size: 24px; border-radius: 12px; border: none;
+      background: #1dd979; color: #04130c; font-weight: bold; cursor: pointer;
       box-shadow: 0 3px 8px rgba(0,0,0,0.3);
     }
-
-    @media (max-width: 720px) {
-      #mobile-controls {
-        display: flex;
-      }
-    }
+    @media (max-width: 720px) { #mobile-controls { display: flex; } }
   </style>
 </head>
 <body>
   <div id="intro" class="overlay">
     <div>
       <h2>🎮 Pong Game</h2>
-      <p>To start, a small Base transaction is required.</p>
+      <p id="intro-msg">To start, a small Base transaction is required.</p>
       <button id="payPlay">Pay & Play</button>
       <div id="status"></div>
     </div>
@@ -99,34 +78,33 @@
   </div>
 
   <script type="module">
-    import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'
+    import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
     sdk.actions.ready();
 
+    /* ===== Config ===== */
     const USE_BASE_SEPOLIA = false;
     const RECIPIENT = "0xB60Be01ACbe65390A08f34fE513443A0dcEa59f1";
     const AMOUNT_ETH = "0.00001";
-
     const BASE_MAINNET = { chainId: "0x2105",  explorer: "https://basescan.org/tx/" };
     const BASE_SEPOLIA = { chainId: "0x14a34", explorer: "https://sepolia.basescan.org/tx/" };
     const TARGET = USE_BASE_SEPOLIA ? BASE_SEPOLIA : BASE_MAINNET;
 
-    const statusEl = document.getElementById("status");
+    /* ===== UI Helpers ===== */
+    const introEl  = document.getElementById('intro');
+    const introMsg = document.getElementById('intro-msg');
+    const statusEl = document.getElementById('status');
     const show = msg => { statusEl.innerHTML += msg + "<br>"; };
+    const clearStatus = () => { statusEl.innerHTML = ""; };
 
-    let lossCount = 0;
-    let gamePaused = false; // new: pause flag
-
+    /* ===== Payment helpers ===== */
     function parseEther(x){
-      const [w,f=""]=String(x).split('.');
-      const frac=(f+'0'.repeat(18)).slice(0,18);
+      const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18);
       return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16);
     }
-
     async function getProvider(){
       try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {}
       return window.ethereum ?? null;
     }
-
     async function ensureChain(provider, chainId) {
       const current = (await provider.request({ method:'eth_chainId' }))?.toLowerCase();
       if (current === chainId.toLowerCase()) return;
@@ -139,8 +117,8 @@
         } else { throw e; }
       }
     }
-
     async function requiredPayment() {
+      clearStatus();
       show("🔍 Connecting wallet…");
       const provider = await getProvider();
       if (!provider) throw new Error("No wallet found");
@@ -148,7 +126,7 @@
       const [from] = await provider.request({ method:'eth_requestAccounts' });
       show("👛 " + from.slice(0,6)+"…"+from.slice(-4));
       await ensureChain(provider, TARGET.chainId);
-      show("🔄 Switching to Base network…");
+      show("🔄 On Base network…");
       const hash = await provider.request({
         method:'eth_sendTransaction',
         params:[{ from, to:RECIPIENT, value:parseEther(AMOUNT_ETH) }]
@@ -157,35 +135,31 @@
       return hash;
     }
 
+    /* ===== Game lifecycle ===== */
+    let pong = null; // will hold game API after first start
+
     document.getElementById("payPlay").addEventListener("click", async () => {
       try {
-        document.getElementById("payPlay").disabled = true;
+        const btn = document.getElementById("payPlay");
+        btn.disabled = true;
         await requiredPayment();
-        document.getElementById("intro").style.display = "none";
-        lossCount = 0;
-        gamePaused = false; // resume game after payment
-        startPong();
-      } catch(e) {
+        introEl.style.display = "none";
+        if (!pong) {
+          pong = startPong();          // first start
+        } else {
+          pong.resumeAfterPayment();   // resume after later payments
+        }
+      } catch (e) {
         show("❌ Payment required to play.");
       } finally {
         document.getElementById("payPlay").disabled = false;
       }
     });
 
-    // When player loses 3 times → pause + show payment screen
-    function handleLoss(){
-      lossCount++;
-      if (lossCount >= 3) {
-        gamePaused = true;
-        alert("💸 You lost 3 times! Please pay again to continue.");
-        document.getElementById("intro").style.display = "grid";
-        document.getElementById("status").innerHTML = "";
-      }
-    }
-
+    /* ===== Start Pong and return tiny API to pause/resume ===== */
     function startPong(){
       const canvas = document.getElementById('game');
-      const context = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d');
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
@@ -193,27 +167,45 @@
       const grid = Math.max(10, canvas.width / 50);
       const paddleHeight = grid * 5;
       const maxPaddleY = canvas.height - grid - paddleHeight;
-      let paddleSpeed = 6, ballSpeed = 4;
 
-      const bot = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
+      let paddleSpeed = 6, ballSpeed = 4;
+      let gamePaused = false;
+      let rafId = null;
+
+      const bot =    { x:grid*2,            y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
       const player = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
-      const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed, resetting:false };
+      const ball =   { x:canvas.width/2,    y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed };
 
       function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
 
+      function resetBall(random=true){
+        ball.x = canvas.width/2;
+        ball.y = canvas.height/2;
+        ball.dx = random ? ballSpeed * (Math.random()>0.5?1:-1) : 0;
+        ball.dy = random ? ballSpeed * (Math.random()>0.5?1:-1) : 0;
+      }
+
+      function pauseForPayment(){
+        // freeze everything NOW
+        gamePaused = true;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        ball.dx = 0; ball.dy = 0; // stop ball
+        introMsg.textContent = "You lost! Please pay to play again.";
+        clearStatus();
+        introEl.style.display = "grid";
+      }
+
       function loop(){
-        requestAnimationFrame(loop);
+        if (gamePaused) return; // do not schedule next frame when paused
 
-        if (gamePaused) return; // ⛔ stop all movement
-
-        context.clearRect(0,0,canvas.width,canvas.height);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
 
         // Player movement
         player.y += player.dy;
         if(player.y < grid) player.y = grid;
         else if(player.y > maxPaddleY) player.y = maxPaddleY;
 
-        // Bot movement
+        // Bot movement (left)
         const botCenter = bot.y + bot.height / 2;
         if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
         else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
@@ -224,47 +216,50 @@
         ball.x += ball.dx;
         ball.y += ball.dy;
 
+        // Top/bottom bounce
         if(ball.y < grid || ball.y + grid > canvas.height - grid){ ball.dy *= -1; }
 
-        // Reset ball if out
-        if((ball.x < 0 || ball.x > canvas.width) && !ball.resetting){
-          ball.resetting = true;
-          if (ball.x > canvas.width) handleLoss();
-          setTimeout(()=>{
-            ball.resetting = false;
-            ball.x = canvas.width/2;
-            ball.y = canvas.height/2;
-            ball.dx = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
-            ball.dy = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
-          },400);
+        // Out of bounds: check both sides
+        if (ball.x > canvas.width) {
+          // Player lost -> stop immediately and show pay screen
+          pauseForPayment();
+          return; // don't schedule next frame
+        } else if (ball.x < 0) {
+          // Bot lost -> just reset and continue
+          resetBall(true);
         }
 
         // Collisions
         if(collides(ball, bot)){ ball.dx *= -1; ball.x = bot.x + bot.width; }
         else if(collides(ball, player)){ ball.dx *= -1; ball.x = player.x - ball.width; }
 
-        // Draw
-        context.fillStyle='white';
-        context.fillRect(bot.x, bot.y, bot.width, bot.height);
-        context.fillRect(player.x, player.y, player.width, player.height);
-        context.fillRect(ball.x, ball.y, ball.width, ball.height);
+        // Draw paddles/ball
+        ctx.fillStyle='white';
+        ctx.fillRect(bot.x, bot.y, bot.width, bot.height);
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.fillRect(ball.x, ball.y, ball.width, ball.height);
 
         // Walls + midline
-        context.fillStyle='lightgrey';
-        context.fillRect(0,0,canvas.width,grid);
-        context.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
+        ctx.fillStyle='lightgrey';
+        ctx.fillRect(0,0,canvas.width,grid);
+        ctx.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
         for(let i=grid;i<canvas.height-grid;i+=grid*2)
-          context.fillRect(canvas.width/2-grid/2,i,grid,grid);
+          ctx.fillRect(canvas.width/2-grid/2,i,grid,grid);
+
+        // schedule next frame only if not paused
+        rafId = requestAnimationFrame(loop);
       }
 
-      // Controls
-      document.addEventListener('keydown',e=>{
+      // Keyboard controls
+      const onKeyDown = (e)=>{
         if(e.which===38) player.dy=-paddleSpeed;
         else if(e.which===40) player.dy=paddleSpeed;
-      });
-      document.addEventListener('keyup',e=>{
+      };
+      const onKeyUp = (e)=>{
         if([38,40].includes(e.which)) player.dy=0;
-      });
+      };
+      document.addEventListener('keydown', onKeyDown);
+      document.addEventListener('keyup', onKeyUp);
 
       // Mobile controls
       const upBtn = document.getElementById('btn-up');
@@ -276,7 +271,19 @@
       upBtn.addEventListener('touchend', handleTouchEnd);
       downBtn.addEventListener('touchend', handleTouchEnd);
 
-      requestAnimationFrame(loop);
+      // kick off
+      resetBall(true);
+      rafId = requestAnimationFrame(loop);
+
+      // API to resume after payment
+      return {
+        resumeAfterPayment(){
+          // prepare a fresh round
+          gamePaused = false;
+          resetBall(true);
+          rafId = requestAnimationFrame(loop);
+        }
+      };
     }
   </script>
 </body>
