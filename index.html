@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Pong – Pay to Play (with Chill Music)</title>
+  <title>Pong – Pay to Play + Stormy Music</title>
   <style>
     html, body {
       height: 100%;
@@ -109,7 +109,7 @@
   </div>
 
   <!-- 🎵 BACKGROUND MUSIC -->
-  <audio id="bgMusic" src="music.mp3" preload="auto" loop></audio>
+  <audio id="bgMusic" src="STORMY - BADI 7EFYAN (Official Music Video).mp3" preload="auto" loop></audio>
 
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
@@ -134,16 +134,17 @@
     let firstPlay = true;
     let muted = false;
 
-    // 🎵 إعداد الموسيقى
-    bgMusic.volume = 0.25; // هادئة
+    // 🎧 إعداد الموسيقى
+    bgMusic.volume = 0.2; // صوت هادئ ومريح
 
     async function startMusic() {
       if (muted) return;
       try {
-        bgMusic.currentTime = 25; // البداية من 25 ثانية
+        bgMusic.currentTime = 25; // البداية من الثانية 25
         await bgMusic.play();
+        console.log("🎵 Music started from 25s");
       } catch (err) {
-        console.warn("🎵 Autoplay blocked:", err);
+        console.warn("⚠️ Music blocked until user gesture:", err);
       }
     }
 
