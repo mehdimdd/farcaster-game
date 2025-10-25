@@ -2,22 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
   <title>Pong – Pay to Play</title>
   <style>
-    html, body { height:100%; margin:0; }
-    body { background:black; display:flex; align-items:center; justify-content:center; }
-    canvas { border:2px solid white; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas {
+      border: 2px solid white;
+      width: 90vw;           /* Responsive width */
+      max-width: 480px;      /* limit max width for small screen */
+      aspect-ratio: 4 / 3;   /* keep shape proportion */
+      background: black;
+    }
 
     .overlay {
-      position:fixed; inset:0; display:grid; place-items:center;
-      background:rgba(0,0,0,.8); color:white; font-family:sans-serif;
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      font-family: sans-serif;
+      text-align: center;
+      padding: 20px;
     }
+
     button {
-      background:#1dd979; border:0; padding:10px 20px; border-radius:10px;
-      color:#04130c; font-weight:700; cursor:pointer; margin-top:10px;
+      background: #1dd979;
+      border: 0;
+      padding: 10px 20px;
+      border-radius: 10px;
+      color: #04130c;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
     }
-    #status { margin-top:8px; font-size:14px; color:#ccc; }
+
+    #status {
+      margin-top: 8px;
+      font-size: 14px;
+      color: #ccc;
+    }
   </style>
 </head>
 <body>
@@ -30,7 +62,7 @@
     </div>
   </div>
 
-  <canvas width="750" height="585" id="game"></canvas>
+  <canvas id="game"></canvas>
 
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'
@@ -68,7 +100,7 @@
       }
     }
     async function requiredPayment() {
-      show("🔍 Locating wallet…");
+      show("🔍 Connecting wallet…");
       const provider = await getProvider();
       if (!provider) throw new Error("No wallet");
       show("✅ Wallet ready.");
@@ -97,14 +129,19 @@
       }
     });
 
-    /* === Original Pong code === */
     function startPong(){
       const canvas = document.getElementById('game');
       const context = canvas.getContext('2d');
-      const grid = 15;
+      const rect = canvas.getBoundingClientRect();
+
+      // Scale canvas to match CSS size
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+
+      const grid = Math.max(10, canvas.width / 50);
       const paddleHeight = grid * 5;
       const maxPaddleY = canvas.height - grid - paddleHeight;
-      let paddleSpeed = 6, ballSpeed = 5;
+      let paddleSpeed = 6, ballSpeed = 4;
       const left = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
       const right = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
       const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed, resetting:false };
