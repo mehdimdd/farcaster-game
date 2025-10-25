@@ -110,14 +110,18 @@
     const statusEl = document.getElementById("status");
     const show = msg => { statusEl.innerHTML += msg + "<br>"; };
 
+    let lossCount = 0; // Track how many times the player loses
+
     function parseEther(x){
       const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18);
       return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16);
     }
+
     async function getProvider(){
       try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {}
       return window.ethereum ?? null;
     }
+
     async function ensureChain(provider, chainId) {
       const current = (await provider.request({ method:'eth_chainId' }))?.toLowerCase();
       if (current === chainId.toLowerCase()) return;
@@ -130,6 +134,7 @@
         } else { throw e; }
       }
     }
+
     async function requiredPayment() {
       show("🔍 Connecting wallet…");
       const provider = await getProvider();
@@ -147,6 +152,7 @@
       return hash;
     }
 
+    // Main start
     document.getElementById("payPlay").addEventListener("click", async () => {
       try {
         document.getElementById("payPlay").disabled = true;
@@ -159,6 +165,14 @@
         document.getElementById("payPlay").disabled = false;
       }
     });
+
+    async function handleLoss(){
+      lossCount++;
+      if (lossCount % 3 === 0) {
+        alert("💰 You've lost 3 times! Please pay again to continue playing.");
+        await requiredPayment();
+      }
+    }
 
     function startPong(){
       const canvas = document.getElementById('game');
@@ -182,7 +196,7 @@
         requestAnimationFrame(loop);
         context.clearRect(0,0,canvas.width,canvas.height);
 
-        // Player movement (keyboard + mobile)
+        // Player movement
         player.y += player.dy;
         if(player.y < grid) player.y = grid;
         else if(player.y > maxPaddleY) player.y = maxPaddleY;
@@ -203,6 +217,7 @@
         // Reset ball if out
         if((ball.x < 0 || ball.x > canvas.width) && !ball.resetting){
           ball.resetting = true;
+          if (ball.x > canvas.width) handleLoss(); // Player lost
           setTimeout(()=>{
             ball.resetting = false;
             ball.x = canvas.width/2;
@@ -230,7 +245,7 @@
           context.fillRect(canvas.width/2-grid/2,i,grid,grid);
       }
 
-      // Keyboard controls
+      // Controls
       document.addEventListener('keydown',e=>{
         if(e.which===38) player.dy=-paddleSpeed;
         else if(e.which===40) player.dy=paddleSpeed;
@@ -242,10 +257,8 @@
       // Mobile controls
       const upBtn = document.getElementById('btn-up');
       const downBtn = document.getElementById('btn-down');
-
       const handleTouchStart = (dir) => { player.dy = dir === 'up' ? -paddleSpeed : paddleSpeed; };
       const handleTouchEnd = () => { player.dy = 0; };
-
       upBtn.addEventListener('touchstart', () => handleTouchStart('up'));
       downBtn.addEventListener('touchstart', () => handleTouchStart('down'));
       upBtn.addEventListener('touchend', handleTouchEnd);
