@@ -81,9 +81,10 @@
 
     let pong = null;
     let totalLosses = 0;
-    let maxLosses = 7; // 🔹 أول مرة 7 خسارات
-    let level = 1;     // 🔹 المستويات: كل أداء = +1
+    let maxLosses = 7; // 🔹 تبدأ بـ7 خسارات
+    let level = 1;     // 🔹 المستوى الحالي
     let resetAfterCycle = false;
+    let firstPlay = true; // ✅ باش نعرف واش أول مرة يلعب
 
     function updateLossDisplay() {
       lossEl.textContent = `💀 Losses: ${totalLosses}/${maxLosses} | Level ${level}`;
@@ -121,16 +122,21 @@
         introEl.style.display = "none";
         totalLosses = 0;
 
-        // ⚙️ منين توصل لآخر دورة (1 خسارة) — دير Reset شامل
-        if (resetAfterCycle) {
-          maxLosses = 7;
-          level = 1;
-          resetAfterCycle = false;
-          show("🔁 Game Reset — back to Level 1!");
-        } else if (maxLosses > 1) {
-          maxLosses--;
-          level++;
-          if (maxLosses === 1) resetAfterCycle = true;
+        // ✅ إذا كانت أول مرة — ما تنقصش المستوى
+        if (firstPlay) {
+          firstPlay = false; // المرة الجاية ما تبقاش أول مرة
+        } else {
+          // ⚙️ منين توصل لآخر دورة (1 خسارة) — دير Reset شامل
+          if (resetAfterCycle) {
+            maxLosses = 7;
+            level = 1;
+            resetAfterCycle = false;
+            show("🔁 Game Reset — back to Level 1!");
+          } else if (maxLosses > 1) {
+            maxLosses--;
+            level++;
+            if (maxLosses === 1) resetAfterCycle = true;
+          }
         }
 
         updateLossDisplay();
