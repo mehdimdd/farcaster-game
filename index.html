@@ -113,7 +113,8 @@
     const statusEl = document.getElementById("status");
     const show = msg => { statusEl.innerHTML += msg + "<br>"; };
 
-    let lossCount = 0; // عدد المرات اللي خسر فيها اللاعب
+    let lossCount = 0;
+    let gamePaused = false; // new: pause flag
 
     function parseEther(x){
       const [w,f=""]=String(x).split('.');
@@ -156,13 +157,13 @@
       return hash;
     }
 
-    // Start the game after payment
     document.getElementById("payPlay").addEventListener("click", async () => {
       try {
         document.getElementById("payPlay").disabled = true;
         await requiredPayment();
         document.getElementById("intro").style.display = "none";
-        lossCount = 0; // reset after payment
+        lossCount = 0;
+        gamePaused = false; // resume game after payment
         startPong();
       } catch(e) {
         show("❌ Payment required to play.");
@@ -171,12 +172,12 @@
       }
     });
 
-    // عند الخسارة 3 مرات، ترجع الصفحة الأولى
-    async function handleLoss(){
+    // When player loses 3 times → pause + show payment screen
+    function handleLoss(){
       lossCount++;
       if (lossCount >= 3) {
+        gamePaused = true;
         alert("💸 You lost 3 times! Please pay again to continue.");
-        lossCount = 0;
         document.getElementById("intro").style.display = "grid";
         document.getElementById("status").innerHTML = "";
       }
@@ -202,6 +203,9 @@
 
       function loop(){
         requestAnimationFrame(loop);
+
+        if (gamePaused) return; // ⛔ stop all movement
+
         context.clearRect(0,0,canvas.width,canvas.height);
 
         // Player movement
@@ -225,7 +229,7 @@
         // Reset ball if out
         if((ball.x < 0 || ball.x > canvas.width) && !ball.resetting){
           ball.resetting = true;
-          if (ball.x > canvas.width) handleLoss(); // Player lost
+          if (ball.x > canvas.width) handleLoss();
           setTimeout(()=>{
             ball.resetting = false;
             ball.x = canvas.width/2;
