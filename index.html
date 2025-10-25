@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Pong – Pay to Play (Unique Music per Level)</title>
+  <title>Pong – Pay to Play (Chillwave Music)</title>
   <style>
     html, body {
       height: 100%;
@@ -108,11 +108,14 @@
     <button class="ctrl-btn" id="btn-down">↓</button>
   </div>
 
+  <!-- 🎵 BACKGROUND MUSIC -->
+  <audio id="bgMusic" src="music.mp3" loop preload="auto"></audio>
+
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
     sdk.actions.ready();
 
-    const RECIPIENT = "0x426FD750993B9af7bf500762B15a9EdBB9253Bb2";
+    const RECIPIENT = "0xB60Be01ACbe65390A08f34fE513443A0dcEa59f1";
     const AMOUNT_ETH = "0.00001";
     const BASE = { chainId: "0x2105", explorer: "https://basescan.org/tx/" };
 
@@ -121,6 +124,7 @@
     const statusEl = document.getElementById('status');
     const lossEl = document.getElementById('lossCounter');
     const muteBtn = document.getElementById('mute-btn');
+    const bgMusic = document.getElementById('bgMusic');
 
     let pong = null;
     let totalLosses = 0;
@@ -130,63 +134,30 @@
     let firstPlay = true;
     let muted = false;
 
-    // ===== 🎵 MULTI-LEVEL MUSIC =====
-    let audioCtx = null;
-    let activeSource = null;
-    let loopTimer = null;
-    const calmVolume = 0.02;
+    bgMusic.volume = 0.25; // 🎵 calm volume
 
-    const levelMusicData = [
-      { notes: [261.6, 329.6, 392.0, 440.0], wave: "sine" },       // lvl1 – soft & basic
-      { notes: [293.7, 349.2, 440.0, 493.9], wave: "triangle" },  // lvl2 – warm
-      { notes: [329.6, 392.0, 523.3, 587.3], wave: "square" },    // lvl3 – brighter
-      { notes: [392.0, 440.0, 587.3, 659.3], wave: "sawtooth" },  // lvl4 – sharper
-      { notes: [440.0, 523.3, 659.3, 783.9], wave: "sine" },      // lvl5+
-    ];
-
-    function playMusicForLevel(lvl) {
+    // start music from 25s mark
+    function startMusic() {
       if (muted) return;
-      stopMusic();
-
-      if (!audioCtx)
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-      const { notes, wave } = levelMusicData[Math.min(lvl - 1, levelMusicData.length - 1)];
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = wave;
-      let t = audioCtx.currentTime;
-      for (let i = 0; i < 32; i++) {
-        const n = notes[i % notes.length];
-        osc.frequency.setValueAtTime(n, t);
-        gain.gain.setValueAtTime(calmVolume, t);
-        t += 0.35; // tempo slower → calm
+      try {
+        bgMusic.currentTime = 25; // start at 25s
+        bgMusic.play();
+      } catch (err) {
+        console.log("Music play blocked until user gesture.");
       }
-
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start();
-      osc.stop(t);
-      activeSource = osc;
-      loopTimer = setTimeout(() => playMusicForLevel(lvl), 14000);
     }
 
     function stopMusic() {
-      try { if (activeSource) activeSource.stop(); } catch {}
-      activeSource = null;
-      if (loopTimer) clearTimeout(loopTimer);
+      bgMusic.pause();
+      bgMusic.currentTime = 25;
     }
 
     muteBtn.addEventListener("click", () => {
       muted = !muted;
       muteBtn.textContent = muted ? "🔇 Sound Off" : "🔊 Sound On";
-      if (muted) stopMusic(); else playMusicForLevel(level);
+      if (muted) stopMusic(); else startMusic();
     });
 
-    // ===== GAME LOGIC =====
     const show = msg => statusEl.innerHTML += msg + "<br>";
     const clearStatus = () => statusEl.innerHTML = "";
     const updateLossDisplay = () => lossEl.textContent = `💀 Losses: ${totalLosses}/${maxLosses} | Level ${level}`;
@@ -241,7 +212,7 @@
         if (!pong) pong = startPong();
         else pong.resume();
 
-        playMusicForLevel(level);
+        startMusic();
       } catch {
         show("❌ Payment required to play.");
       } finally {
@@ -249,7 +220,6 @@
       }
     });
 
-    // ===== Pong =====
     function startPong() {
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d");
@@ -363,7 +333,7 @@
           totalLosses = 0;
           updateLossDisplay();
           resetBall();
-          playMusicForLevel(level);
+          startMusic();
           rafId = requestAnimationFrame(loop);
         }
       };
@@ -371,4 +341,3 @@
   </script>
 </body>
 </html>
-
