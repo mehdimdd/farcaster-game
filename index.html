@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
-  <title>Pong – Pay to Play (Music Control Fixed)</title>
+  <title>Pong – Pay to Play (Multi-Level Music)</title>
   <style>
     html, body {
       height: 100%;
@@ -49,8 +49,6 @@
       margin-top: 5px;
       font-weight: bold;
     }
-
-    /* زر التحكم في الصوت */
     #mute-btn {
       position: fixed;
       top: 12px;
@@ -65,8 +63,6 @@
       cursor: pointer;
       z-index: 15;
     }
-
-    /* أزرار الموبايل */
     #mobile-controls {
       position: fixed;
       bottom: 14px;
@@ -107,7 +103,6 @@
   <div id="lossCounter"></div>
   <canvas id="game"></canvas>
 
-  <!-- أزرار الموبايل -->
   <div id="mobile-controls">
     <button class="ctrl-btn" id="btn-up">↑</button>
     <button class="ctrl-btn" id="btn-down">↓</button>
@@ -135,34 +130,42 @@
     let firstPlay = true;
     let muted = false;
 
-    /* 🎵 Background music system (with no overlap) */
+    /* 🎵 Multi-level calm background music */
     let audioCtx, musicNode, musicLoopTimer;
+    const volume = 0.03; // 🔉 volume calm
+
+    function getNotesForLevel(lvl) {
+      switch (lvl) {
+        case 1: return [261.6, 329.6, 392.0, 440.0];   // do-mi-sol-la
+        case 2: return [293.7, 349.2, 440.0, 493.9];   // re-fa-la-si
+        case 3: return [329.6, 392.0, 493.9, 523.3];   // mi-sol-si-do
+        default:
+          return [392.0, 440.0, 523.3, 587.3];         // random upbeat
+      }
+    }
 
     function startMusic() {
-      if (muted) return; // ما تشغلش إذا الميوت شغال
-      stopMusic(); // نوقف أي موسيقى قديمة قبل ما نبدأ
+      if (muted) return;
+      stopMusic();
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
-      o.type = "triangle";
+      o.type = "sine"; // أكثر نعومة
+      const notes = getNotesForLevel(level);
       let t = audioCtx.currentTime;
-      const notes = [261.6, 329.6, 392.0, 440.0]; // melody بسيطة
       for (let i = 0; i < 64; i++) {
         const n = notes[i % notes.length];
         o.frequency.setValueAtTime(n, t);
-        g.gain.setValueAtTime(0.08, t);
+        g.gain.setValueAtTime(volume, t);
         t += 0.25;
       }
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
       o.connect(g);
       g.connect(audioCtx.destination);
       o.start();
       o.stop(t);
       musicNode = o;
-      musicLoopTimer = setTimeout(() => {
-        startMusic();
-      }, 16000);
+      musicLoopTimer = setTimeout(() => startMusic(), 16000);
     }
 
     function stopMusic() {
@@ -229,7 +232,6 @@
         }
 
         updateLossDisplay();
-
         if (!pong) pong = startPong();
         else pong.resume();
 
@@ -322,7 +324,6 @@
         rafId = requestAnimationFrame(loop);
       }
 
-      // كيبورد
       document.addEventListener("keydown", e => {
         if (e.which === 38) player.dy = -paddleSpeed;
         else if (e.which === 40) player.dy = paddleSpeed;
@@ -331,7 +332,6 @@
         if ([38, 40].includes(e.which)) player.dy = 0;
       });
 
-      // أزرار الموبايل
       const upBtn = document.getElementById('btn-up');
       const downBtn = document.getElementById('btn-down');
       const startUp = (ev) => { ev.preventDefault(); player.dy = -paddleSpeed; };
