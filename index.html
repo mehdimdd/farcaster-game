@@ -81,11 +81,12 @@
 
     let pong = null;
     let totalLosses = 0;
-    let maxLosses = 7; // 🧩 تبدأ بـ7
-    let level = 1; // لمتابعة الصعوبة
+    let maxLosses = 7; // 🔹 أول مرة 7 خسارات
+    let level = 1;     // 🔹 المستويات: كل أداء = +1
+    let resetAfterCycle = false;
 
     function updateLossDisplay() {
-      lossEl.textContent = `💀 Losses: ${totalLosses}/${maxLosses}  |  Level ${level}`;
+      lossEl.textContent = `💀 Losses: ${totalLosses}/${maxLosses} | Level ${level}`;
     }
 
     async function getProvider() {
@@ -120,10 +121,16 @@
         introEl.style.display = "none";
         totalLosses = 0;
 
-        // 👇 بعد الأداء، نقص عدد الخسارات للمرة الجاية
-        if (maxLosses > 1) {
+        // ⚙️ منين توصل لآخر دورة (1 خسارة) — دير Reset شامل
+        if (resetAfterCycle) {
+          maxLosses = 7;
+          level = 1;
+          resetAfterCycle = false;
+          show("🔁 Game Reset — back to Level 1!");
+        } else if (maxLosses > 1) {
           maxLosses--;
           level++;
+          if (maxLosses === 1) resetAfterCycle = true;
         }
 
         updateLossDisplay();
@@ -201,7 +208,6 @@
           if (loseRound()) return;
         } else if (ball.x < 0) resetBall();
 
-        // collisions
         if (ball.x < bot.x + bot.w && ball.x + ball.w > bot.x && ball.y < bot.y + bot.h && ball.y + ball.h > bot.y)
           ball.dx *= -1;
         if (ball.x < player.x + player.w && ball.x + ball.w > player.x && ball.y < player.y + player.h && ball.y + ball.h > player.y)
