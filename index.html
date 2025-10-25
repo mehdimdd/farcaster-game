@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Pong – Pay to Play</title>
   <style>
     html, body {
@@ -13,29 +13,25 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      font-family: system-ui, sans-serif;
     }
-
     canvas {
       border: 2px solid white;
       width: 90vw;
       max-width: 480px;
       aspect-ratio: 4 / 3;
       background: black;
-      touch-action: none;
     }
-
     .overlay {
       position: fixed;
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.85);
+      background: rgba(0,0,0,0.85);
       color: white;
       text-align: center;
       padding: 20px;
     }
-
     button {
       background: #1dd979;
       border: 0;
@@ -46,24 +42,13 @@
       cursor: pointer;
       margin-top: 10px;
     }
-
     #status { margin-top: 8px; font-size: 14px; color: #ccc; }
-
     #lossCounter {
       color: #1dd979;
       font-size: 18px;
       margin-top: 5px;
       font-weight: bold;
     }
-
-    /* Mobile controls */
-    #mobile-controls { display: none; margin-top: 10px; gap: 10px; }
-    .ctrl-btn {
-      width: 70px; height: 70px; font-size: 24px; border-radius: 12px; border: none;
-      background: #1dd979; color: #04130c; font-weight: bold; cursor: pointer;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-    }
-    @media (max-width: 720px) { #mobile-controls { display: flex; } }
   </style>
 </head>
 <body>
@@ -79,75 +64,52 @@
   <div id="lossCounter"></div>
   <canvas id="game"></canvas>
 
-  <!-- On-screen mobile controls -->
-  <div id="mobile-controls">
-    <button class="ctrl-btn" id="btn-up">↑</button>
-    <button class="ctrl-btn" id="btn-down">↓</button>
-  </div>
-
   <script type="module">
     import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
     sdk.actions.ready();
 
-    /* ===== Config ===== */
-    const USE_BASE_SEPOLIA = false;
     const RECIPIENT = "0xB60Be01ACbe65390A08f34fE513443A0dcEa59f1";
     const AMOUNT_ETH = "0.00001";
-    const BASE_MAINNET = { chainId: "0x2105",  explorer: "https://basescan.org/tx/" };
-    const BASE_SEPOLIA = { chainId: "0x14a34", explorer: "https://sepolia.basescan.org/tx/" };
-    const TARGET = USE_BASE_SEPOLIA ? BASE_SEPOLIA : BASE_MAINNET;
+    const BASE = { chainId: "0x2105", explorer: "https://basescan.org/tx/" };
 
-    /* ===== UI Helpers ===== */
-    const introEl  = document.getElementById('intro');
+    const introEl = document.getElementById('intro');
     const introMsg = document.getElementById('intro-msg');
     const statusEl = document.getElementById('status');
-    const lossEl   = document.getElementById('lossCounter');
-    const show = msg => { statusEl.innerHTML += msg + "<br>"; };
-    const clearStatus = () => { statusEl.innerHTML = ""; };
+    const lossEl = document.getElementById('lossCounter');
+    const show = msg => statusEl.innerHTML += msg + "<br>";
+    const clearStatus = () => statusEl.innerHTML = "";
 
-    let totalLosses = 0; // 🧮 track total losses
+    let pong = null;
+    let totalLosses = 0;
+    let maxLosses = 7; // 🔥 يبدأ بـ7 وينقص بعد كل أداء
 
-    /* ===== Payment helpers ===== */
-    function parseEther(x){
-      const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18);
-      return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16);
+    function updateLossDisplay() {
+      lossEl.textContent = `💀 Losses: ${totalLosses}/${maxLosses}`;
     }
-    async function getProvider(){
+
+    async function getProvider() {
       try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {}
       return window.ethereum ?? null;
     }
-    async function ensureChain(provider, chainId) {
-      const current = (await provider.request({ method:'eth_chainId' }))?.toLowerCase();
-      if (current === chainId.toLowerCase()) return;
-      try {
-        await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] });
-      } catch (e) {
-        if (e?.code === 4902) {
-          await provider.request({ method:'wallet_addEthereumChain', params:[{ chainId }] });
-          await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] });
-        } else { throw e; }
-      }
-    }
+
     async function requiredPayment() {
       clearStatus();
       show("🔍 Connecting wallet…");
       const provider = await getProvider();
       if (!provider) throw new Error("No wallet found");
       show("✅ Wallet ready.");
-      const [from] = await provider.request({ method:'eth_requestAccounts' });
-      show("👛 " + from.slice(0,6)+"…"+from.slice(-4));
-      await ensureChain(provider, TARGET.chainId);
+      const [from] = await provider.request({ method: "eth_requestAccounts" });
+      show("👛 " + from.slice(0,6) + "…" + from.slice(-4));
+      await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: BASE.chainId }] });
       show("🔄 On Base network…");
+      const value = "0x" + (BigInt(parseFloat(AMOUNT_ETH) * 1e18)).toString(16);
       const hash = await provider.request({
-        method:'eth_sendTransaction',
-        params:[{ from, to:RECIPIENT, value:parseEther(AMOUNT_ETH) }]
+        method: "eth_sendTransaction",
+        params: [{ from, to: RECIPIENT, value }]
       });
-      show(`✅ TX sent. <a target="_blank" href="${TARGET.explorer}${hash}">View</a>`);
+      show(`✅ TX sent. <a target="_blank" href="${BASE.explorer}${hash}">View</a>`);
       return hash;
     }
-
-    /* ===== Game lifecycle ===== */
-    let pong = null; // will hold game API after first start
 
     document.getElementById("payPlay").addEventListener("click", async () => {
       try {
@@ -156,148 +118,112 @@
         await requiredPayment();
         introEl.style.display = "none";
         totalLosses = 0;
+        if (maxLosses > 1) maxLosses--; // 🔥 كل أداء ينقص عدد الخسارات المسموح بها
         updateLossDisplay();
-        if (!pong) {
-          pong = startPong();
-        } else {
-          pong.resumeAfterPayment();
-        }
-      } catch (e) {
+        if (!pong) pong = startPong();
+        else pong.resume();
+      } catch {
         show("❌ Payment required to play.");
       } finally {
         document.getElementById("payPlay").disabled = false;
       }
     });
 
-    function updateLossDisplay() {
-      lossEl.textContent = `💀 Losses: ${totalLosses}/7`;
-    }
-
-    function startPong(){
-      const canvas = document.getElementById('game');
-      const ctx = canvas.getContext('2d');
+    function startPong() {
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width;
       canvas.height = rect.height;
 
       const grid = Math.max(10, canvas.width / 50);
-      const paddleHeight = grid * 5;
-      const maxPaddleY = canvas.height - grid - paddleHeight;
-
+      const paddleH = grid * 5;
+      const maxY = canvas.height - grid - paddleH;
       let paddleSpeed = 6, ballSpeed = 4;
-      let gamePaused = false;
-      let rafId = null;
+      let paused = false, rafId = null;
 
-      const bot =    { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
-      const player = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
-      const ball =   { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed };
+      const bot = { x: grid*2, y: canvas.height/2 - paddleH/2, w: grid, h: paddleH };
+      const player = { x: canvas.width - grid*3, y: canvas.height/2 - paddleH/2, w: grid, h: paddleH, dy: 0 };
+      const ball = { x: canvas.width/2, y: canvas.height/2, w: grid, h: grid, dx: ballSpeed, dy: -ballSpeed };
 
-      function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
-
-      function resetBall(random=true){
+      function resetBall() {
         ball.x = canvas.width/2;
         ball.y = canvas.height/2;
-        ball.dx = random ? ballSpeed * (Math.random()>0.5?1:-1) : 0;
-        ball.dy = random ? ballSpeed * (Math.random()>0.5?1:-1) : 0;
+        ball.dx = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+        ball.dy = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
       }
 
-      function pauseForPayment(){
-        gamePaused = true;
-        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      function pauseGame() {
+        paused = true;
+        if (rafId) cancelAnimationFrame(rafId);
         ball.dx = 0; ball.dy = 0;
-        introMsg.textContent = "You reached 7 losses! Please pay to play again.";
+        introMsg.textContent = `You reached ${maxLosses} losses! Please pay to continue.`;
         clearStatus();
         introEl.style.display = "grid";
       }
 
-      function handleLoss(){
+      function loseRound() {
         totalLosses++;
         updateLossDisplay();
-        if (totalLosses >= 7) {
-          pauseForPayment();
+        if (totalLosses >= maxLosses) {
+          pauseGame();
           return true;
         }
+        resetBall();
         return false;
       }
 
-      function loop(){
-        if (gamePaused) return;
+      function loop() {
+        if (paused) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-
-        // Player movement
         player.y += player.dy;
-        if(player.y < grid) player.y = grid;
-        else if(player.y > maxPaddleY) player.y = maxPaddleY;
+        if (player.y < grid) player.y = grid;
+        else if (player.y > maxY) player.y = maxY;
 
-        // Bot AI
-        const botCenter = bot.y + bot.height / 2;
+        const botCenter = bot.y + bot.h / 2;
         if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
         else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
-        if(bot.y < grid) bot.y = grid;
-        else if(bot.y > maxPaddleY) bot.y = maxPaddleY;
 
-        // Ball movement
         ball.x += ball.dx;
         ball.y += ball.dy;
+        if (ball.y < grid || ball.y + grid > canvas.height - grid) ball.dy *= -1;
 
-        if(ball.y < grid || ball.y + grid > canvas.height - grid){ ball.dy *= -1; }
-
-        // Out of bounds
         if (ball.x > canvas.width) {
-          if (handleLoss()) return; // stop if reached 7
-          resetBall(true);
-        } else if (ball.x < 0) {
-          resetBall(true);
-        }
+          if (loseRound()) return;
+        } else if (ball.x < 0) resetBall();
 
-        // Collisions
-        if(collides(ball, bot)){ ball.dx *= -1; ball.x = bot.x + bot.width; }
-        else if(collides(ball, player)){ ball.dx *= -1; ball.x = player.x - ball.width; }
+        if (ball.x < bot.x + bot.w && ball.x + ball.w > bot.x && ball.y < bot.y + bot.h && ball.y + ball.h > bot.y)
+          ball.dx *= -1;
+        if (ball.x < player.x + player.w && ball.x + ball.w > player.x && ball.y < player.y + player.h && ball.y + ball.h > player.y)
+          ball.dx *= -1;
 
-        // Draw
-        ctx.fillStyle='white';
-        ctx.fillRect(bot.x, bot.y, bot.width, bot.height);
-        ctx.fillRect(player.x, player.y, player.width, player.height);
-        ctx.fillRect(ball.x, ball.y, ball.width, ball.height);
-
-        ctx.fillStyle='lightgrey';
-        ctx.fillRect(0,0,canvas.width,grid);
-        ctx.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
-        for(let i=grid;i<canvas.height-grid;i+=grid*2)
-          ctx.fillRect(canvas.width/2-grid/2,i,grid,grid);
+        ctx.fillStyle = "white";
+        ctx.fillRect(bot.x, bot.y, bot.w, bot.h);
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+        ctx.fillRect(ball.x, ball.y, ball.w, ball.h);
 
         rafId = requestAnimationFrame(loop);
       }
 
-      // Controls
-      document.addEventListener('keydown',e=>{
-        if(e.which===38) player.dy=-paddleSpeed;
-        else if(e.which===40) player.dy=paddleSpeed;
+      document.addEventListener("keydown", e => {
+        if (e.which === 38) player.dy = -paddleSpeed;
+        else if (e.which === 40) player.dy = paddleSpeed;
       });
-      document.addEventListener('keyup',e=>{
-        if([38,40].includes(e.which)) player.dy=0;
+      document.addEventListener("keyup", e => {
+        if ([38, 40].includes(e.which)) player.dy = 0;
       });
 
-      // Mobile controls
-      const upBtn = document.getElementById('btn-up');
-      const downBtn = document.getElementById('btn-down');
-      const handleTouchStart = (dir) => { player.dy = dir === 'up' ? -paddleSpeed : paddleSpeed; };
-      const handleTouchEnd = () => { player.dy = 0; };
-      upBtn.addEventListener('touchstart', () => handleTouchStart('up'));
-      downBtn.addEventListener('touchstart', () => handleTouchStart('down'));
-      upBtn.addEventListener('touchend', handleTouchEnd);
-      downBtn.addEventListener('touchend', handleTouchEnd);
-
-      resetBall(true);
+      resetBall();
+      updateLossDisplay();
       rafId = requestAnimationFrame(loop);
 
       return {
-        resumeAfterPayment(){
-          gamePaused = false;
+        resume() {
+          paused = false;
           totalLosses = 0;
           updateLossDisplay();
-          resetBall(true);
+          resetBall();
           rafId = requestAnimationFrame(loop);
         }
       };
