@@ -49,6 +49,13 @@
 
     #status { margin-top: 8px; font-size: 14px; color: #ccc; }
 
+    #lossCounter {
+      color: #1dd979;
+      font-size: 18px;
+      margin-top: 5px;
+      font-weight: bold;
+    }
+
     /* Mobile controls */
     #mobile-controls { display: none; margin-top: 10px; gap: 10px; }
     .ctrl-btn {
@@ -69,6 +76,7 @@
     </div>
   </div>
 
+  <div id="lossCounter"></div>
   <canvas id="game"></canvas>
 
   <!-- On-screen mobile controls -->
@@ -93,8 +101,11 @@
     const introEl  = document.getElementById('intro');
     const introMsg = document.getElementById('intro-msg');
     const statusEl = document.getElementById('status');
+    const lossEl   = document.getElementById('lossCounter');
     const show = msg => { statusEl.innerHTML += msg + "<br>"; };
     const clearStatus = () => { statusEl.innerHTML = ""; };
+
+    let totalLosses = 0; // 🧮 track total losses
 
     /* ===== Payment helpers ===== */
     function parseEther(x){
@@ -144,10 +155,12 @@
         btn.disabled = true;
         await requiredPayment();
         introEl.style.display = "none";
+        totalLosses = 0;
+        updateLossDisplay();
         if (!pong) {
-          pong = startPong();          // first start
+          pong = startPong();
         } else {
-          pong.resumeAfterPayment();   // resume after later payments
+          pong.resumeAfterPayment();
         }
       } catch (e) {
         show("❌ Payment required to play.");
@@ -156,7 +169,10 @@
       }
     });
 
-    /* ===== Start Pong and return tiny API to pause/resume ===== */
+    function updateLossDisplay() {
+      lossEl.textContent = `💀 Losses: ${totalLosses}/7`;
+    }
+
     function startPong(){
       const canvas = document.getElementById('game');
       const ctx = canvas.getContext('2d');
@@ -172,9 +188,9 @@
       let gamePaused = false;
       let rafId = null;
 
-      const bot =    { x:grid*2,            y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
+      const bot =    { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight };
       const player = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
-      const ball =   { x:canvas.width/2,    y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed };
+      const ball =   { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed };
 
       function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
 
@@ -186,17 +202,26 @@
       }
 
       function pauseForPayment(){
-        // freeze everything NOW
         gamePaused = true;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-        ball.dx = 0; ball.dy = 0; // stop ball
-        introMsg.textContent = "You lost! Please pay to play again.";
+        ball.dx = 0; ball.dy = 0;
+        introMsg.textContent = "You reached 7 losses! Please pay to play again.";
         clearStatus();
         introEl.style.display = "grid";
       }
 
+      function handleLoss(){
+        totalLosses++;
+        updateLossDisplay();
+        if (totalLosses >= 7) {
+          pauseForPayment();
+          return true;
+        }
+        return false;
+      }
+
       function loop(){
-        if (gamePaused) return; // do not schedule next frame when paused
+        if (gamePaused) return;
 
         ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -205,7 +230,7 @@
         if(player.y < grid) player.y = grid;
         else if(player.y > maxPaddleY) player.y = maxPaddleY;
 
-        // Bot movement (left)
+        // Bot AI
         const botCenter = bot.y + bot.height / 2;
         if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
         else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
@@ -216,16 +241,13 @@
         ball.x += ball.dx;
         ball.y += ball.dy;
 
-        // Top/bottom bounce
         if(ball.y < grid || ball.y + grid > canvas.height - grid){ ball.dy *= -1; }
 
-        // Out of bounds: check both sides
+        // Out of bounds
         if (ball.x > canvas.width) {
-          // Player lost -> stop immediately and show pay screen
-          pauseForPayment();
-          return; // don't schedule next frame
+          if (handleLoss()) return; // stop if reached 7
+          resetBall(true);
         } else if (ball.x < 0) {
-          // Bot lost -> just reset and continue
           resetBall(true);
         }
 
@@ -233,33 +255,29 @@
         if(collides(ball, bot)){ ball.dx *= -1; ball.x = bot.x + bot.width; }
         else if(collides(ball, player)){ ball.dx *= -1; ball.x = player.x - ball.width; }
 
-        // Draw paddles/ball
+        // Draw
         ctx.fillStyle='white';
         ctx.fillRect(bot.x, bot.y, bot.width, bot.height);
         ctx.fillRect(player.x, player.y, player.width, player.height);
         ctx.fillRect(ball.x, ball.y, ball.width, ball.height);
 
-        // Walls + midline
         ctx.fillStyle='lightgrey';
         ctx.fillRect(0,0,canvas.width,grid);
         ctx.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
         for(let i=grid;i<canvas.height-grid;i+=grid*2)
           ctx.fillRect(canvas.width/2-grid/2,i,grid,grid);
 
-        // schedule next frame only if not paused
         rafId = requestAnimationFrame(loop);
       }
 
-      // Keyboard controls
-      const onKeyDown = (e)=>{
+      // Controls
+      document.addEventListener('keydown',e=>{
         if(e.which===38) player.dy=-paddleSpeed;
         else if(e.which===40) player.dy=paddleSpeed;
-      };
-      const onKeyUp = (e)=>{
+      });
+      document.addEventListener('keyup',e=>{
         if([38,40].includes(e.which)) player.dy=0;
-      };
-      document.addEventListener('keydown', onKeyDown);
-      document.addEventListener('keyup', onKeyUp);
+      });
 
       // Mobile controls
       const upBtn = document.getElementById('btn-up');
@@ -271,15 +289,14 @@
       upBtn.addEventListener('touchend', handleTouchEnd);
       downBtn.addEventListener('touchend', handleTouchEnd);
 
-      // kick off
       resetBall(true);
       rafId = requestAnimationFrame(loop);
 
-      // API to resume after payment
       return {
         resumeAfterPayment(){
-          // prepare a fresh round
           gamePaused = false;
+          totalLosses = 0;
+          updateLossDisplay();
           resetBall(true);
           rafId = requestAnimationFrame(loop);
         }
