@@ -16,9 +16,9 @@
 
     canvas {
       border: 2px solid white;
-      width: 90vw;           /* Responsive width */
-      max-width: 480px;      /* limit max width for small screen */
-      aspect-ratio: 4 / 3;   /* keep shape proportion */
+      width: 90vw;           
+      max-width: 480px;      
+      aspect-ratio: 4 / 3;   
       background: black;
     }
 
@@ -133,8 +133,6 @@
       const canvas = document.getElementById('game');
       const context = canvas.getContext('2d');
       const rect = canvas.getBoundingClientRect();
-
-      // Scale canvas to match CSS size
       canvas.width = rect.width;
       canvas.height = rect.height;
 
@@ -142,8 +140,10 @@
       const paddleHeight = grid * 5;
       const maxPaddleY = canvas.height - grid - paddleHeight;
       let paddleSpeed = 6, ballSpeed = 4;
-      const left = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
-      const right = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+
+      // Player on right, bot on left
+      const bot = { x:grid*2, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
+      const player = { x:canvas.width - grid*3, y:canvas.height/2 - paddleHeight/2, width:grid, height:paddleHeight, dy:0 };
       const ball = { x:canvas.width/2, y:canvas.height/2, width:grid, height:grid, dx:ballSpeed, dy:-ballSpeed, resetting:false };
 
       function collides(a,b){ return a.x<b.x+b.width && a.x+a.width>b.x && a.y<b.y+b.height && a.y+a.height>b.y; }
@@ -151,26 +151,54 @@
       function loop(){
         requestAnimationFrame(loop);
         context.clearRect(0,0,canvas.width,canvas.height);
-        left.y+=left.dy; right.y+=right.dy;
-        if(left.y<grid) left.y=grid; else if(left.y>maxPaddleY) left.y=maxPaddleY;
-        if(right.y<grid) right.y=grid; else if(right.y>maxPaddleY) right.y=maxPaddleY;
 
-        context.fillStyle='white';
-        context.fillRect(left.x,left.y,left.width,left.height);
-        context.fillRect(right.x,right.y,right.width,right.height);
+        // Move player (keyboard)
+        player.y += player.dy;
+        if(player.y < grid) player.y = grid;
+        else if(player.y > maxPaddleY) player.y = maxPaddleY;
 
-        ball.x+=ball.dx; ball.y+=ball.dy;
-        if(ball.y<grid||ball.y+grid>canvas.height-grid){ ball.dy*=-1; }
+        // Bot movement: follow ball slowly
+        const botCenter = bot.y + bot.height / 2;
+        if (botCenter < ball.y - 10) bot.y += paddleSpeed * 0.6;
+        else if (botCenter > ball.y + 10) bot.y -= paddleSpeed * 0.6;
+        if(bot.y < grid) bot.y = grid;
+        else if(bot.y > maxPaddleY) bot.y = maxPaddleY;
 
-        if((ball.x<0||ball.x>canvas.width)&&!ball.resetting){
-          ball.resetting=true;
-          setTimeout(()=>{ball.resetting=false; ball.x=canvas.width/2; ball.y=canvas.height/2;},400);
+        // Ball movement
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        // Bounce top/bottom
+        if(ball.y < grid || ball.y + grid > canvas.height - grid){ ball.dy *= -1; }
+
+        // Reset ball if out of bounds
+        if((ball.x < 0 || ball.x > canvas.width) && !ball.resetting){
+          ball.resetting = true;
+          setTimeout(()=>{
+            ball.resetting = false;
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.dx = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+            ball.dy = ballSpeed * (Math.random() > 0.5 ? 1 : -1);
+          },400);
         }
 
-        if(collides(ball,left)){ ball.dx*=-1; ball.x=left.x+left.width; }
-        else if(collides(ball,right)){ ball.dx*=-1; ball.x=right.x-ball.width; }
+        // Collisions
+        if(collides(ball, bot)){
+          ball.dx *= -1;
+          ball.x = bot.x + bot.width;
+        } else if(collides(ball, player)){
+          ball.dx *= -1;
+          ball.x = player.x - ball.width;
+        }
 
-        context.fillRect(ball.x,ball.y,ball.width,ball.height);
+        // Draw paddles and ball
+        context.fillStyle='white';
+        context.fillRect(bot.x, bot.y, bot.width, bot.height);
+        context.fillRect(player.x, player.y, player.width, player.height);
+        context.fillRect(ball.x, ball.y, ball.width, ball.height);
+
+        // Walls and midline
         context.fillStyle='lightgrey';
         context.fillRect(0,0,canvas.width,grid);
         context.fillRect(0,canvas.height-grid,canvas.width,canvas.height);
@@ -178,19 +206,17 @@
           context.fillRect(canvas.width/2-grid/2,i,grid,grid);
       }
 
+      // Player controls
       document.addEventListener('keydown',e=>{
-        if(e.which===38) right.dy=-paddleSpeed;
-        else if(e.which===40) right.dy=paddleSpeed;
-        if(e.which===87) left.dy=-paddleSpeed;
-        else if(e.which===83) left.dy=paddleSpeed;
+        if(e.which===38) player.dy=-paddleSpeed;
+        else if(e.which===40) player.dy=paddleSpeed;
       });
       document.addEventListener('keyup',e=>{
-        if([38,40].includes(e.which)) right.dy=0;
-        if([83,87].includes(e.which)) left.dy=0;
+        if([38,40].includes(e.which)) player.dy=0;
       });
+
       requestAnimationFrame(loop);
     }
   </script>
 </body>
 </html>
-
